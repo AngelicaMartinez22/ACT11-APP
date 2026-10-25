@@ -1,0 +1,155 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import signal
+
+# ==========================================
+# 1. FUNCION DE TRANSFERENCIA DEL SISTEMA
+# ==========================================
+# G(s) = 1 / ((s+3)(s+4)(s+8))
+# G(s) = 1 / (s^3 + 15s^2 + 68s + 96)
+
+num_G = [1]
+den_G = [1, 15, 68, 96]
+
+# ==========================================
+# 2. METODO DE ZIEGLER-NICHOLS
+# ==========================================
+Ku = 15 * 68 - 96
+omega_u = np.sqrt(68)
+Tu = 2 * np.pi / omega_u
+
+Kc = 0.6 * Ku
+Ti = 0.5 * Tu
+Td = 0.125 * Tu
+
+# Ganancias del PID en forma paralela
+Kp = Kc
+Ki = Kc / Ti
+Kd = Kc * Td
+
+print("PARAMETROS DEL CONTROLADOR PID")
+print("--------------------------------")
+print(f"Ganancia ultima Ku = {Ku:.4f}")
+print(f"Periodo ultimo Tu = {Tu:.4f} s")
+print(f"Kc = {Kc:.4f}")
+print(f"Ti = {Ti:.4f} s")
+print(f"Td = {Td:.4f} s")
+print(f"Kp = {Kp:.4f}")
+print(f"Ki = {Ki:.4f}")
+print(f"Kd = {Kd:.4f}")
+
+# ==========================================
+# 3. CONTROLADOR PID IDEAL
+# C(s) = Kc*(1 + 1/(Ti*s) + Td*s)
+# ==========================================
+num_C = [
+    Kc * Td * Ti,
+    Kc * Ti,
+    Kc
+]
+
+den_C = [Ti, 0]
+
+# ==========================================
+# 4. SISTEMA EN LAZO CERRADO
+# T(s) = C(s)G(s) / (1 + C(s)G(s))
+# Retroalimentacion unitaria
+# ==========================================
+num_L = np.polymul(num_C, num_G)
+den_L = np.polymul(den_C, den_G)
+
+# Sumar numerador y denominador para 1 + L(s)
+den_CL = np.polyadd(den_L, num_L)
+num_CL = num_L
+
+sistema_cerrado = signal.TransferFunction(
+    num_CL, den_CL
+)
+
+# ==========================================
+# 5. RESPUESTA AL ESCALON UNITARIO
+# ==========================================
+tiempo = np.linspace(0, 5, 5000)
+
+tiempo, salida = signal.step(
+    sistema_cerrado, T=tiempo
+)
+
+# ==========================================
+# 6. CALCULO DE DESEMPENO
+# ==========================================
+valor_final = salida[-1]
+valor_maximo = np.max(salida)
+sobreimpulso = max(0, (valor_maximo - 1) * 100)
+error_estacionario = abs(1 - valor_final)
+
+# Tiempo de establecimiento dentro de banda +/-2 %
+fuera_banda = np.where(np.abs(salida - 1) > 0.02)[0]
+
+if len(fuera_banda) == 0:
+    tiempo_establecimiento = 0
+elif fuera_banda[-1] < len(tiempo) - 1:
+    tiempo_establecimiento = tiempo[fuera_banda[-1] + 1]
+else:
+    tiempo_establecimiento = None
+
+print("\nRESULTADOS DE LA RESPUESTA")
+print("--------------------------------")
+print(f"Valor final = {valor_final:.6f}")
+print(f"Sobreimpulso = {sobreimpulso:.2f}%")
+print(f"Error estacionario = {error_estacionario:.6f}")
+
+if tiempo_establecimiento is not None:
+    print(
+        f"Tiempo de establecimiento = "
+        f"{tiempo_establecimiento:.4f} s"
+    )
+else:
+    print("No se estabilizo dentro de los 5 segundos.")
+
+# ==========================================
+# 7. GRAFICA DE LA RESPUESTA PID
+# ==========================================
+plt.figure(figsize=(10, 6))
+
+plt.plot(
+    tiempo,
+    salida,
+    linewidth=2,
+    label="Respuesta del sistema con PID"
+)
+
+plt.axhline(
+    y=1,
+    color="red",
+    linestyle="--",
+    label="Referencia unitaria = 1"
+)
+
+plt.axhspan(
+    0.98, 1.02,
+    alpha=0.15,
+    label="Banda de estabilizacion +/-2%"
+)
+
+plt.title(
+    "Respuesta en lazo cerrado ante un escalon unitario\n"
+    "PID sintonizado por Ziegler-Nichols"
+)
+
+plt.xlabel("Tiempo (s)")
+plt.ylabel("Salida y(t)")
+plt.xlim(0, 5)
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+
+# Guardar grafica para el reporte
+plt.savefig(
+    "grafica_respuesta_PID.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
