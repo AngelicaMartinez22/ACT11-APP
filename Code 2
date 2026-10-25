@@ -1,0 +1,163 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import signal
+
+# ==================================================
+# 1. FUNCION DE TRANSFERENCIA DE LA PLANTA
+# ==================================================
+# G(s) = 1 / ((s+3)(s+4)(s+8))
+# G(s) = 1 / (s^3 + 15s^2 + 68s + 96)
+
+num_G = [1]
+den_G = [1, 15, 68, 96]
+
+print("=" * 55)
+print("SINTONIZACION PID - ZIEGLER-NICHOLS")
+print("=" * 55)
+print("\nFuncion de transferencia:")
+print("G(s) = 1 / (s^3 + 15s^2 + 68s + 96)")
+
+# ==================================================
+# 2. CALCULO DE Ku MEDIANTE ROUTH-HURWITZ
+# ==================================================
+# Con control proporcional K:
+# 1 + K*G(s) = 0
+# s^3 + 15s^2 + 68s + (96+K) = 0
+#
+# Condicion de oscilacion sostenida:
+# 15*68 = 96 + Ku
+
+Ku = 15 * 68 - 96
+
+# Frecuencia angular de oscilacion:
+omega_u = np.sqrt(68)
+
+# Periodo ultimo:
+Tu = 2 * np.pi / omega_u
+
+print("\n1. CALCULO DE LA GANANCIA ULTIMA")
+print("-" * 40)
+print("Ecuacion caracteristica:")
+print("s^3 + 15s^2 + 68s + (96+K) = 0")
+print("\nCriterio de Routh-Hurwitz:")
+print("15(68) - (96+Ku) = 0")
+print(f"Ku = 15*68 - 96 = {Ku:.2f}")
+
+print("\n2. CALCULO DEL PERIODO ULTIMO")
+print("-" * 40)
+print("Ecuacion auxiliar: 15s^2 + 1020 = 0")
+print("omega_u = sqrt(1020/15) = sqrt(68)")
+print(f"Frecuencia angular = {omega_u:.4f} rad/s")
+print(f"Tu = 2*pi/omega_u = {Tu:.4f} s")
+
+# ==================================================
+# 3. SIMULACION CON CONTROL PROPORCIONAL Ku
+# ==================================================
+# Sistema cerrado con retroalimentacion unitaria:
+# T(s) = K*G(s) / (1 + K*G(s))
+
+num_p = [Ku]
+den_p = [1, 15, 68, 96 + Ku]
+
+sistema_p = signal.TransferFunction(num_p, den_p)
+
+# Simular durante varios periodos
+tiempo = np.linspace(0, 5 * Tu, 5000)
+tiempo, salida = signal.step(sistema_p, T=tiempo)
+
+# ==================================================
+# 4. GRAFICA PARA AISLAR EL PERIODO Tu
+# ==================================================
+fig, ax = plt.subplots(figsize=(10, 5))
+
+ax.plot(
+    tiempo, salida,
+    label=f"Respuesta con K = Ku = {Ku:.0f}",
+    linewidth=1.8
+)
+
+ax.set_title("Oscilacion sostenida con la ganancia ultima")
+ax.set_xlabel("Tiempo (s)")
+ax.set_ylabel("Salida y(t)")
+ax.grid(True)
+ax.legend()
+
+# Marcar periodos teoricos
+for n in range(1, 5):
+    ax.axvline(n * Tu, linestyle="--", alpha=0.5)
+    ax.text(n * Tu, ax.get_ylim()[1] * 0.90,
+            f"{n}Tu", rotation=90, va="top")
+
+plt.tight_layout()
+plt.savefig("01_oscilacion_ganancia_ultima.png", dpi=300)
+plt.show()
+
+# ==================================================
+# 5. TABLA CLASICA DE ZIEGLER-NICHOLS
+# ==================================================
+# Reglas para un controlador PID:
+# Kc = 0.6*Ku
+# Ti = Tu/2
+# Td = Tu/8
+
+Kc = 0.6 * Ku
+Ti = 0.5 * Tu
+Td = 0.125 * Tu
+
+# Conversion a forma paralela
+Kp = Kc
+Ki = Kc / Ti
+Kd = Kc * Td
+
+print("\n3. TABLA CLASICA DE ZIEGLER-NICHOLS")
+print("-" * 55)
+print(f"{'Parametro':<25}{'Formula':<20}{'Resultado':>10}")
+print("-" * 55)
+print(f"{'Ganancia Kc':<25}{'0.6 * Ku':<20}{Kc:>10.4f}")
+print(f"{'Tiempo integral Ti':<25}{'0.5 * Tu':<20}{Ti:>10.4f}")
+print(f"{'Tiempo derivativo Td':<25}{'0.125 * Tu':<20}{Td:>10.4f}")
+print("-" * 55)
+
+print("\nGanancias equivalentes en forma paralela:")
+print(f"Kp = {Kp:.4f}")
+print(f"Ki = {Ki:.4f}")
+print(f"Kd = {Kd:.4f}")
+
+# ==================================================
+# 6. TABLA VISUAL PARA EL REPORTE
+# ==================================================
+fig2, ax2 = plt.subplots(figsize=(9, 3.5))
+ax2.axis("off")
+
+datos = [
+    ["Ganancia ultima", "Ku", f"{Ku:.2f}"],
+    ["Periodo ultimo", "Tu", f"{Tu:.4f} s"],
+    ["Ganancia del PID", "Kc = 0.6 Ku", f"{Kc:.4f}"],
+    ["Tiempo integral", "Ti = Tu/2", f"{Ti:.4f} s"],
+    ["Tiempo derivativo", "Td = Tu/8", f"{Td:.4f} s"],
+]
+
+tabla = ax2.table(
+    cellText=datos,
+    colLabels=["Parametro", "Formula", "Valor"],
+    loc="center",
+    cellLoc="center"
+)
+
+tabla.auto_set_font_size(False)
+tabla.set_fontsize(10)
+tabla.scale(1, 1.7)
+
+ax2.set_title(
+    "Resultados del metodo clasico de Ziegler-Nichols",
+    pad=15
+)
+
+plt.tight_layout()
+plt.savefig("02_tabla_ziegler_nichols.png", dpi=300)
+plt.show()
+
+print("\nGraficas guardadas:")
+print("01_oscilacion_ganancia_ultima.png")
+print("02_tabla_ziegler_nichols.png")
